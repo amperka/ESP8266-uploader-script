@@ -42,7 +42,7 @@ Function GetCOMPort(){
 }
 
 Function PrintFirmwares(){
-   Write-Host "available firmwares"
+   Write-Host "available firmwares:"
    $FirmwareList = Get-ChildItem -Path ".\firmwares\"
    $i = 0
     ForEach ($Firmvare in $FirmwareList) {  
