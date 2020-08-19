@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-"""script for easy update esp8266 firmware with esptool"""
+"""
+    Script for easy update esp8266 firmware with esptool.
+    * Run script with command: ./flash.py
+    * The script works with python version higher than 3.7.
+    * You must have esptool on your PC.
+    * You can check it with command in terminal: esptool version
+    * First, choose COM port, then choose firmware.
+    * You can choose your firmware. Add it to folder firmwares.
+    * Script has pre-downloaded firmware AT commands and espruino v2.06 for esp8266 2MB and 4MB
+"""
 
 import os
 import subprocess
 import re
 import sys
 
-def exit_with_enter():
+def exit_with_enter(error):
     """function for exit with enter"""
     print("Press Enter to exit.")
     input()
-    sys.exit()
+    sys.exit(error)
 
 
 def check_esptool():
@@ -45,6 +54,7 @@ def get_number(max_input):
 
 def do_esptool_command(command, to_console=False):
     """do esptool command in console with subprocess"""
+    print(command)
     try:
         if to_console:
             return subprocess.run(
@@ -62,13 +72,11 @@ def do_esptool_command(command, to_console=False):
         print("")
         if error.returncode == 2:
             print("Error: firmares are lost. Reload this folder from your source.")
-        elif error.returncode == 1:
-            print("Error: connection lost. Reconnect your board and relaunch script.")
-        elif error.returncode == 5:
+        elif error.returncode == 1 or 5:
             print("Error: connection lost. Reconnect your board and relaunch script.")
         else:
             print(error.stderr)
-        exit_with_enter()
+        exit_with_enter(error.returncode)
 
 
 def get_com_port_list():
@@ -112,7 +120,7 @@ def get_firmware():
         print(
             "Error: firmares are lost. Reload this folder from http://wiki.amperka.ru/"
         )
-        exit_with_enter()
+        exit_with_enter(2)
     print("available firmwares:")
     for i, item in enumerate(firmwares, 0):
         print(str(i) + " " + item)
@@ -140,23 +148,27 @@ def flash(com_port, firmware_path):
 
 def main():
     """main function"""
-    if not check_esptool():
-        print("Esptool is not installed.")
-        print("Install esptool on Debian with command: sudo apt install esptool")
-        print("If you have mac use: brew install esptool")
-        print("You can install esptool with pip: pip install esptool")
-        exit_with_enter()
-    com_port_name = get_com_port()
-    firmware_name = get_firmware()
-    if os.path.isdir("./firmwares/" + firmware_name):
-        firmware_path = (
-            "./firmwares/" + firmware_name + "/" + get_esp_flash_size(com_port_name) + ".bin"
-        )
-    else:
-        firmware_path = "./firmwares/" + firmware_name
-    flash(com_port_name, firmware_path)
-    print("Firmware update was successful.")
-    exit_with_enter()
+    try:
+        if not check_esptool():
+            print("Esptool is not installed.")
+            print("Install esptool on Debian with command: sudo apt install esptool")
+            print("If you have mac use: brew install esptool")
+            print("You can install esptool with pip: pip install esptool")
+            exit_with_enter(76)
+        com_port_name = get_com_port()
+        firmware_name = get_firmware()
+        if os.path.isdir("./firmwares/" + firmware_name):
+            firmware_path = (
+                "./firmwares/" + firmware_name + "/" + get_esp_flash_size(com_port_name) + ".bin"
+            )
+        else:
+            firmware_path = "./firmwares/" + firmware_name
+        flash(com_port_name, firmware_path)
+        print("Firmware update was successful.")
+        exit_with_enter(0)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
+        sys.exit(130)
 
 if __name__ == "__main__":
     main()
