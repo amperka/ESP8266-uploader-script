@@ -6,11 +6,11 @@ import subprocess
 import re
 import sys
 
-class EsptoolError(Exception):
-    """esptool return code exeption"""
-    def __init__(self, message):
-        super(EsptoolError, self).__init__(message)
-        self.message = message
+def exit_with_enter():
+    """function for exit with enter"""
+    print("Press Enter to exit.")
+    input()
+    sys.exit()
 
 
 def check_esptool():
@@ -24,9 +24,9 @@ def check_esptool():
         )
         if re.search(".*esptool.*", output.stdout) is not None:
             return True
+        return False
     except FileNotFoundError:
         return False
-    return False
 
 
 def get_number(max_input):
@@ -43,14 +43,42 @@ def get_number(max_input):
     return num
 
 
+def do_esptool_command(command, to_console=False):
+    """do esptool command in console with subprocess"""
+    try:
+        if to_console:
+            return subprocess.run(
+                command,
+                text=True,
+                check=True
+            )
+        return subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as error:
+        print("")
+        if error.returncode == 2:
+            print("Error: firmares are lost. Reload this folder from your source.")
+        elif error.returncode == 1:
+            print("Error: connection lost. Reconnect your board and relaunch script.")
+        elif error.returncode == 5:
+            print("Error: connection lost. Reconnect your board and relaunch script.")
+        else:
+            print(error.stderr)
+        exit_with_enter()
+
+
 def get_com_port_list():
     """get list with available com ports USB and ACM"""
     ports = os.listdir("/dev/")
     output = []
-    for i in range(len(ports) - 1):
-        if (re.search("ttyUSB*", ports[i]) is not None) or (
-                re.search("ttyACM*", ports[i]) is not None):
-            output.append(ports[i])
+    for item in ports:
+        if (re.search("ttyUSB*", item) is not None) or (
+                re.search("ttyACM*", item) is not None):
+            output.append(item)
     return output
 
 
@@ -84,8 +112,7 @@ def get_firmware():
         print(
             "Error: firmares are lost. Reload this folder from http://wiki.amperka.ru/"
         )
-        input()
-        sys.exit()
+        exit_with_enter()
     print("available firmwares:")
     for i, item in enumerate(firmwares, 0):
         print(str(i) + " " + item)
@@ -95,55 +122,41 @@ def get_firmware():
 
 def get_esp_flash_size(com_port):
     """get esp8266 flash size for correct firmware"""
-    out = subprocess.run(
-        ["esptool", "--port", "/dev/" + com_port, "flash_id"],
-        stdout=subprocess.PIPE,
-        text=True,
-        check=True
-    )
+    out = do_esptool_command(["esptool", "--port", "/dev/" + com_port, "flash_id"], False)
     return re.search(".MB", out.stdout).group(0)
 
 
 def flash(com_port, firmware_path):
     """flash board with esptool"""
-    subprocess.run(
-        ["esptool", "--port", "/dev/" + com_port, "write_flash", "0x0000", firmware_path],
-        text=True,
-        check=True
-    )
+    do_esptool_command([
+        "esptool",
+        "--port",
+        "/dev/" + com_port,
+        "write_flash",
+        "0x0000",
+        firmware_path], True)
 
 
 
-if not check_esptool():
-    print("Esptool is not installed.")
-    print("Install esptool on Debian with command: sudo apt install esptool")
-    print("If you have mac use: brew install esptool")
-    print("You can install esptool with pip: pip install esptool")
-    print("Press Enter to exit.")
-    input()
-    sys.exit()
-try:
+def main():
+    """main function"""
+    if not check_esptool():
+        print("Esptool is not installed.")
+        print("Install esptool on Debian with command: sudo apt install esptool")
+        print("If you have mac use: brew install esptool")
+        print("You can install esptool with pip: pip install esptool")
+        exit_with_enter()
     com_port_name = get_com_port()
-    firmware = (
-        "./firmwares/" + get_firmware() + "/" + get_esp_flash_size(com_port_name) + ".bin"
-    )
-    flash(com_port_name, firmware)
-except KeyboardInterrupt:
-    print("")
-    print("KeyboardInterrupt")
-    sys.exit()
-except subprocess.CalledProcessError as error:
-    print("")
-    if error.returncode == 2:
-        print("Error: firmares are lost. Reload this folder from your source.")
-    elif error.returncode == 1:
-        print("Error: connection lost. Reconnect your board and relaunch script.")
-    elif error.returncode == 5:
-        print("Error: connection lost. Reconnect your board and relaunch script.")
+    firmware_name = get_firmware()
+    if os.path.isdir("./firmwares/" + firmware_name):
+        firmware_path = (
+            "./firmwares/" + firmware_name + "/" + get_esp_flash_size(com_port_name) + ".bin"
+        )
     else:
-        print(error.stderr)
-else:
+        firmware_path = "./firmwares/" + firmware_name
+    flash(com_port_name, firmware_path)
     print("Firmware update was successful.")
-finally:
-    print("Press Enter to exit.")
-    input()
+    exit_with_enter()
+
+if __name__ == "__main__":
+    main()
