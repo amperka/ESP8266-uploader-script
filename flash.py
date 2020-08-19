@@ -54,7 +54,6 @@ def get_number(max_input):
 
 def do_esptool_command(command, to_console=False):
     """do esptool command in console with subprocess"""
-    print(command)
     try:
         if to_console:
             return subprocess.run(
@@ -72,7 +71,7 @@ def do_esptool_command(command, to_console=False):
         print("")
         if error.returncode == 2:
             print("Error: firmares are lost. Reload this folder from your source.")
-        elif error.returncode == 1 or 5:
+        elif error.returncode == 1 or error.returncode == 5:
             print("Error: connection lost. Reconnect your board and relaunch script.")
         else:
             print(error.stderr)
