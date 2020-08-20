@@ -5,8 +5,8 @@
     * The script works with python version higher than 3.7.
     * You must have esptool on your PC.
     * You can check it with command in terminal: esptool version
-    * First, choose COM port, then choose firmware.
-    * You can choose your firmware. Add it to folder firmwares.
+    * First, choose serial port device, then choose firmware.
+    * You can choose your firmware. Add it to directory ./firmwares.
     * Script has pre-downloaded firmware AT commands and espruino v2.06 for esp8266 2MB and 4MB
 """
 
@@ -70,7 +70,9 @@ def do_esptool_command(command, to_console=False):
     except subprocess.CalledProcessError as error:
         print("")
         if error.returncode == 2:
-            print("Error: firmares are lost. Reload this folder from your source.")
+            print("Error: The ./firmwares directory not found.")
+            print("The working directory should be a clone of \
+                   https://github.com/amperka/ESP8266-uploader-script")
         elif error.returncode == 1 or error.returncode == 5:
             print("Error: connection lost. Reconnect your board and relaunch script.")
         else:
@@ -78,8 +80,8 @@ def do_esptool_command(command, to_console=False):
         exit_with_enter(error.returncode)
 
 
-def get_com_port_list():
-    """get list with available com ports USB and ACM"""
+def get_serial_port_list():
+    """get list with available serial port devices USB and ACM"""
     ports = os.listdir("/dev/")
     output = []
     for item in ports:
@@ -89,20 +91,20 @@ def get_com_port_list():
     return output
 
 
-def get_com_port():
-    """get string with com port name from user"""
+def get_serial_port():
+    """get string with serial port device name from user"""
     print()
-    ports = get_com_port_list()
+    ports = get_serial_port_list()
     while len(ports) == 0:
         print(
-            "You have not any COM ports. Plug in your Espressif device. Then press ENTER."
+            "You have not any serial port devices. Plug in your Espressif device. Then press ENTER."
         )
         input()
-        ports = get_com_port_list()
-    print("available COM ports:")
+        ports = get_serial_port_list()
+    print("available serial port devices:")
     for i, item in enumerate(ports, 0):
         print(str(i) + " " + item)
-    print("Choose your port. Print number of your COM port.")
+    print("Choose your port. Print number of your serial port device.")
     return ports[get_number(len(ports))]
 
 
@@ -116,9 +118,9 @@ def get_firmware():
     print()
     firmwares = get_firmware_list()
     while len(firmwares) == 0:
-        print(
-            "Error: firmares are lost. Reload this folder from http://wiki.amperka.ru/"
-        )
+        print("Error: The ./firmwares directory not found.")
+        print("The working directory should be a clone of \
+              https://github.com/amperka/ESP8266-uploader-script")
         exit_with_enter(2)
     print("available firmwares:")
     for i, item in enumerate(firmwares, 0):
@@ -127,18 +129,18 @@ def get_firmware():
     return firmwares[get_number(len(firmwares))]
 
 
-def get_esp_flash_size(com_port):
+def get_esp_flash_size(serial_port):
     """get esp8266 flash size for correct firmware"""
-    out = do_esptool_command(["esptool", "--port", "/dev/" + com_port, "flash_id"], False)
+    out = do_esptool_command(["esptool", "--port", "/dev/" + serial_port, "flash_id"], False)
     return re.search(".MB", out.stdout).group(0)
 
 
-def flash(com_port, firmware_path):
+def flash(serial_port, firmware_path):
     """flash board with esptool"""
     do_esptool_command([
         "esptool",
         "--port",
-        "/dev/" + com_port,
+        "/dev/" + serial_port,
         "write_flash",
         "0x0000",
         firmware_path], True)
@@ -154,15 +156,15 @@ def main():
             print("If you have mac use: brew install esptool")
             print("You can install esptool with pip: pip install esptool")
             exit_with_enter(76)
-        com_port_name = get_com_port()
+        serial_port_name = get_serial_port()
         firmware_name = get_firmware()
         if os.path.isdir("./firmwares/" + firmware_name):
             firmware_path = (
-                "./firmwares/" + firmware_name + "/" + get_esp_flash_size(com_port_name) + ".bin"
+                "./firmwares/" + firmware_name + "/" + get_esp_flash_size(serial_port_name) + ".bin"
             )
         else:
             firmware_path = "./firmwares/" + firmware_name
-        flash(com_port_name, firmware_path)
+        flash(serial_port_name, firmware_path)
         print("Firmware update was successful.")
         exit_with_enter(0)
     except KeyboardInterrupt:
