@@ -1,5 +1,7 @@
-Function ReadNumber(){
+Function Read-Number(){
+    #read int from console
     $Output = Read-Host
+    #check input
     while(!($Output -match "^\d{1,5}$")){
         Write-Host "Print a correct number."
         $Output = Read-Host
@@ -7,11 +9,14 @@ Function ReadNumber(){
     Return($Output)
 }
 
-Function PrintCOMPorts(){
+Function Write-COMPorts(){
+    #write com port list to console
     Write-Host "available COM ports:"
-    $TempCOMPortList = (Get-WmiObject -query "SELECT * FROM Win32_PnPEntity" | Where {$_.Name -Match "COM\d+"})
+    #get coms array from database and grep it 
+    $TempCOMPortList = (Get-WmiObject -query "SELECT * FROM Win32_PnPEntity" | Where-Object {$_.Name -Match "COM\d+"})
     $COMPortList = @()
     $i = 0
+    #write array to console
     ForEach ($FullCOMPort in $TempCOMPortList){
         $Temp = $FullCOMPort.name
         $Number = $(($Temp -split " " -match "COM")[0].TrimStart("(").TrimEnd(")"))
@@ -23,28 +28,32 @@ Function PrintCOMPorts(){
     return($COMPortList)
 }
 
-Function GetCOMPort(){
-    $COMPortList = PrintCOMPorts
+Function Get-COMPort(){
+    #ask user number of com
+    $COMPortList = Write-COMPorts
+    #check count of com ports
     while($COMPortList.Length -eq 0){
         Write-Host "You have not any COM ports. Plug in your Espressif device. Then press ENTER."
         Read-Host
-        $COMPortList = PrintCOMPorts
+        $COMPortList = Write-COMPorts
     }
-    
     Write-Host "Choose your port. Print number of your COM port."
-    [int]$COMPortIndex = ReadNumber
-
+    [int]$COMPortIndex = Read-Number
+    #check number of com ports
     while(($COMPortIndex -lt 0) -or ($COMPortIndex -gt $COMPortList.Length - 1)){
         Write-Host "Print a correct number."
-        $COMPortIndex = ReadNumber
+        $COMPortIndex = Read-Number
     }
     Return($COMportList[$COMPortIndex])
 }
 
-Function PrintFirmwares(){
-   Write-Host "available firmwares:"
-   $FirmwareList = Get-ChildItem -Path ".\firmwares\"
-   $i = 0
+Function Write-Firmwares(){
+    #print array of firmwares to console
+    Write-Host "available firmwares:"
+    #get all items in .\firmwares
+    $FirmwareList = Get-ChildItem -Path ".\firmwares\"
+    $i = 0
+    #print items
     ForEach ($Firmvare in $FirmwareList) {  
         Write-Host "$($i): $($Firmvare.Name)"
         $i = $i + 1 
@@ -53,68 +62,66 @@ Function PrintFirmwares(){
     return($FirmwareList)
 }
 
-Function GetFirmwares(){
-    $FirmwareList = PrintFirmwares
+Function Get-Firmwares(){
+    #get firmware from user
+    $FirmwareList = Write-Firmwares
+    #check count of firmwares
     if($FirmwareList.Length -eq 0){
-        Write-Host "Error: firmares are lost. Reload this folder from http://wiki.amperka.ru/"
+        Write-Host "Error: The ./firmwares directory not found."
+        Write-Host "The working directory should be a clone of `
+                    https://github.com/amperka/ESP8266-uploader-script"
         Read-Host
         Exit
     }
     Write-Host "Choose your firmware. Print number of your firmware."
-    [int]$FirmwareIndex = ReadNumber
+    [int]$FirmwareIndex = Read-Number
+    #check number of firmware
     while(($FirmwareIndex -lt 0) -or ($FirmwareIndex -gt $FirmwareList.Length - 1)){
         Write-Host "Print a correct number."
-        $FirmwareIndex = ReadNumber
+        $FirmwareIndex = Read-Number
     }
     return($FirmwareList[$FirmwareIndex]) 
 }
 
-Function IsDirectory($Dir){
+Function Read-Directory($Dir){
+    #is this Dir folder or file
+    #return True or False
     return((Get-Item $Dir.FullName) -is [System.IO.DirectoryInfo])
 }
 
-Function PrintError(){
+Function Write-Error(){
+    #check return code of esptool and print errors 
     if($LastExitCode -eq 0){
-        echo "Firmware update was successful."
-    } elseif($LastExitCode -eq -1){
-        echo "Error: connection lost. Reconnect your board and relaunch script."
+        Write-Output "Firmware update was successful."
+    } elseif(($LastExitCode -eq -1) -or ($LastExitCode -eq -5)){
+        Write-Output "Error: connection lost. Reconnect your board and relaunch script."
     } elseif($LastExitCode -eq 2){
-        echo "Error: failed to connect to Espressif device: Timed out waiting for packet header. Check the wires and do not forget to push the PROG button."
-    }
+        Write-Output "Error: failed to connect to Espressif device: Timed out waiting for packet header. Check the wires and do not forget to push the PROG button."
+    } 
     Write-Host "Press Enter to exit."
-    read-host
+    Read-Host
 }
 
-Function GetESPFlashSize($COMPort){
-    $FlashSize = $(.\esptool\esptool.exe --port $COMPort flash_id) -match ".MB" -split " " -match ".MB"
-    $Output = [int][string]$FlashSize.Chars(0)
-    return($Output)
+Function Get-ESPFlashSize($COMPort){
+    #check esp flash size
+    #return string f.e. 2MB
+    Return $(.\esptool\esptool.exe --port $COMPort flash_id) -match ".MB" -split " " -match ".MB"
 }
 
 Function Flash($COMPort, $FirmwarePath){
+    #flash firmware whith esptool
     .\esptool\esptool.exe `
 						   --port $COMPort `
 						   write_flash 0x0000  $FirmwarePath `
 						   --erase-all
 }
 
-$COMPort = GetCOMPort
-$FirmwarePath = GetFirmwares
-
-if(!(IsDirectory $FirmwarePath)){
+$COMPort = Get-COMPort
+$FirmwarePath = Get-Firmwares
+if(!(Read-Directory $FirmwarePath)){
     Flash $COMPort $FirmwarePath.FullName
-}else{
-    $flashSize = GetESPFlashSize($COMPort)
-    if($flashSize -eq 2){            
-        Flash $COMPort "$($FirmwarePath.FullName)\2MB.bin"
-    }elseif($flashSize -eq 4){
-        Flash $COMPort "$($FirmwarePath.FullName)\4MB.bin"  
-    }else{
-        echo "Don't have firmware for your flash size. Do not use this firmware with your board."
-        echo "Press Enter to exit."
-        Read-Host
-        Exit
-    }
+}else{       
+    Flash $COMPort "$($FirmwarePath.FullName)\$(Get-ESPFlashSize($COMPort)).bin"
 }
 
-PrintError
+Write-Error
