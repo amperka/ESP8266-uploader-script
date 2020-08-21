@@ -10,10 +10,24 @@
     * Script has pre-downloaded firmware AT commands and espruino v2.06 for esp8266 2MB and 4MB
 """
 
+
 import os
 import subprocess
 import re
 import sys
+
+
+def get_esptool_command():
+    """check platform and form esptool command"""
+    if sys.platform == "linux" or sys.platform == "linux2":
+        esptool = "esptool"
+    elif sys.platform == "darwin":
+        esptool = "esptool.py"
+    return esptool
+
+
+ESPTOOL = get_esptool_command()
+
 
 def exit_with_enter(error):
     """function for exit with enter"""
@@ -26,7 +40,7 @@ def check_esptool():
     """function for check esptool on device"""
     try:
         output = subprocess.run(
-            ["esptool", "version"],
+            [ESPTOOL, "version"],
             stdout=subprocess.PIPE,
             text=True,
             check=True
@@ -85,7 +99,9 @@ def get_serial_port_list():
     ports = os.listdir("/dev/")
     output = []
     for item in ports:
-        if (re.search("ttyUSB*", item) is not None) or (
+        if sys.platform == "darwin" and item.startswith("tty."):
+            output.append(item)
+        elif (re.search("ttyUSB*", item) is not None) or (
                 re.search("ttyACM*", item) is not None):
             output.append(item)
     return output
@@ -131,14 +147,14 @@ def get_firmware():
 
 def get_esp_flash_size(serial_port):
     """get esp8266 flash size for correct firmware"""
-    out = do_esptool_command(["esptool", "--port", "/dev/" + serial_port, "flash_id"], False)
+    out = do_esptool_command([ESPTOOL, "--port", "/dev/" + serial_port, "flash_id"], False)
     return re.search(".MB", out.stdout).group(0)
 
 
 def flash(serial_port, firmware_path):
     """flash board with esptool"""
     do_esptool_command([
-        "esptool",
+        ESPTOOL,
         "--port",
         "/dev/" + serial_port,
         "write_flash",
